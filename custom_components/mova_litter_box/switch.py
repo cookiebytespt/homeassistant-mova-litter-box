@@ -6,13 +6,12 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.const import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import MovaConfigEntry
 from .const import PROPERTIES, PropertyDef
 from .coordinator import MovaLitterBoxCoordinator
-from .entity import MovaLitterBoxEntity
+from .entity import MovaLitterBoxEntity, category_for
 
 
 async def async_setup_entry(
@@ -40,8 +39,7 @@ class MovaPropertySwitch(MovaLitterBoxEntity, SwitchEntity):
         self._attr_entity_registry_enabled_default = (
             definition.enabled_default and definition.confirmed
         )
-        if definition.entity_category == "diagnostic":
-            self._attr_entity_category = EntityCategory.CONFIG
+        self._attr_entity_category = category_for(definition)
 
     @property
     def is_on(self) -> bool | None:
@@ -50,7 +48,7 @@ class MovaPropertySwitch(MovaLitterBoxEntity, SwitchEntity):
         )
         if value is None:
             return None
-        return value == self._definition.on_value or value is True
+        return value == self._definition.on_value
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_property(

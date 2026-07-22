@@ -49,9 +49,14 @@ class PropertyDef:
     off_value: Any = 0
     enabled_default: bool = True
     confirmed: bool = False  # flipped to True once verified against a probe
-    # Optional value decoder ("schedule" = packed 3-byte day/hour/minute
-    # entries as hex).
+    # Optional value decoder:
+    #   "schedule"    = packed 3-byte [days|0x80 enabled][hour][minute] hex
+    #   "time_window" = 5-byte [days|0x80 enabled][sh][sm][eh][em] hex
     decoder: str | None = None
+    # For numbers:
+    min_value: float | None = None
+    max_value: float | None = None
+    step: float | None = None
 
     @property
     def prop_key(self) -> str:
@@ -111,10 +116,20 @@ STATUS_OPTIONS: dict[Any, str] = {
 #         (confirmed via watch: "FF0B00" every day 11:00, "810A00" Mon 10:00)
 #   3.13 = air purification running 0/1 (confirmed via watch)
 #   3.14 = deodorizing spray running 0/1 (confirmed via watch)
-#   3.6 / 3.20 = "FF00000800" — suspected time windows (enabled, 00:00-08:00),
-#         probably DND and air purification schedule; unconfirmed
-#   2.2, 2.6, 2.10, rest of 3.x = unmapped; exposed as raw sensors.
-#   Correlate more with: tools/mova_probe.py --watch
+# Fourth watch session confirmed the whole settings block:
+#   2.10 = DND currently enabled (read-only mirror of DND controls)
+#   3.4  = soft stool mode 0/1          3.5  = auto-clean DND 0/1
+#   3.6  = auto-clean DND time window   3.8  = child lock 0/1
+#   3.9  = key light 0/1
+#   3.10 = key tone 0/1                 3.11 = clean delay minutes (1/5 seen)
+#   3.15 = air purification during cleaning 0/1
+#   3.16 = auto spray after cleaning 0/1
+#   3.17 = air purification duration: 6 quick / 18 standard / 36 long
+#   3.18 = auto spray duration (10 / 30 seen)
+#   3.19 = air purification DND 0/1     3.20 = air purification DND window
+#   Time windows: 5-byte hex [days|0x80 enabled][sh][sm][eh][em].
+#   Still unmapped: 2.2, 2.6, 3.2, 3.12, 3.21 (cat visit / litter level /
+#   bin full candidates — need a cat).
 PROPERTIES: list[PropertyDef] = [
     PropertyDef(
         key="device_status",
@@ -198,6 +213,141 @@ PROPERTIES: list[PropertyDef] = [
         kind="binary_sensor",
         device_class="running",
         icon="mdi:spray",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="dnd_active",
+        siid=2,
+        piid=10,
+        kind="binary_sensor",
+        entity_category="diagnostic",
+        icon="mdi:sleep",
+        confirmed=True,
+    ),
+    # ---- settings (fourth watch session) --------------------------------
+    PropertyDef(
+        key="soft_stool_mode",
+        siid=3,
+        piid=4,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:emoticon-poop",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="auto_clean_dnd",
+        siid=3,
+        piid=5,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:sleep",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="auto_clean_dnd_window",
+        siid=3,
+        piid=6,
+        kind="sensor",
+        entity_category="diagnostic",
+        icon="mdi:clock-outline",
+        decoder="time_window",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="child_lock",
+        siid=3,
+        piid=8,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:lock",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="key_light",
+        siid=3,
+        piid=9,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:lightbulb-on-outline",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="key_tone",
+        siid=3,
+        piid=10,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:volume-high",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="cleaning_delay",
+        siid=3,
+        piid=11,
+        kind="number",
+        entity_category="config",
+        icon="mdi:timer-outline",
+        unit="min",
+        min_value=1,
+        max_value=30,  # bounds unverified; 1 and 5 observed
+        step=1,
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="air_purification_in_cleaning",
+        siid=3,
+        piid=15,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:air-filter",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="auto_spray",
+        siid=3,
+        piid=16,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:spray",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="air_purification_duration",
+        siid=3,
+        piid=17,
+        kind="select",
+        entity_category="config",
+        icon="mdi:air-filter",
+        options={6: "quick", 18: "standard", 36: "long_lasting"},
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="auto_spray_duration",
+        siid=3,
+        piid=18,
+        kind="select",
+        entity_category="config",
+        icon="mdi:spray",
+        options={10: "short", 30: "long"},  # 10 and 30 observed
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="air_purification_dnd",
+        siid=3,
+        piid=19,
+        kind="switch",
+        entity_category="config",
+        icon="mdi:sleep",
+        confirmed=True,
+    ),
+    PropertyDef(
+        key="air_purification_dnd_window",
+        siid=3,
+        piid=20,
+        kind="sensor",
+        entity_category="diagnostic",
+        icon="mdi:clock-outline",
+        decoder="time_window",
         confirmed=True,
     ),
 ]

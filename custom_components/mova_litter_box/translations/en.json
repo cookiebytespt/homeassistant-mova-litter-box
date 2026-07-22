@@ -58,11 +58,27 @@
       "serial_number": { "name": "Serial number" },
       "fault_code": { "name": "Fault code" },
       "device_time": { "name": "Device time" },
-      "cleaning_schedule": { "name": "Cleaning schedule" }
+      "cleaning_schedule": { "name": "Cleaning schedule" },
+      "auto_clean_dnd_window": { "name": "Auto-clean DND window" },
+      "air_purification_dnd_window": { "name": "Air purification DND window" }
     },
     "binary_sensor": {
       "air_purification": { "name": "Air purification" },
-      "deodorizing": { "name": "Deodorizing" }
+      "deodorizing": { "name": "Deodorizing" },
+      "dnd_active": { "name": "Do not disturb" }
+    },
+    "switch": {
+      "soft_stool_mode": { "name": "Soft stool mode" },
+      "auto_clean_dnd": { "name": "Auto-clean DND" },
+      "child_lock": { "name": "Child lock" },
+      "key_light": { "name": "Key light" },
+      "key_tone": { "name": "Key tone" },
+      "air_purification_in_cleaning": { "name": "Air purification during cleaning" },
+      "auto_spray": { "name": "Auto spray after cleaning" },
+      "air_purification_dnd": { "name": "Air purification DND" }
+    },
+    "number": {
+      "cleaning_delay": { "name": "Cleaning delay" }
     },
     "select": {
       "cleaning_mode": {
@@ -70,6 +86,21 @@
         "state": {
           "automatic": "Automatic",
           "manual": "Manual"
+        }
+      },
+      "air_purification_duration": {
+        "name": "Air purification duration",
+        "state": {
+          "quick": "Quick",
+          "standard": "Standard",
+          "long_lasting": "Long-lasting"
+        }
+      },
+      "auto_spray_duration": {
+        "name": "Auto spray duration",
+        "state": {
+          "short": "Short (10)",
+          "long": "Long (30)"
         }
       }
     }

@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, PropertyDef
 from .coordinator import MovaLitterBoxCoordinator
+
+
+def category_for(definition: PropertyDef) -> EntityCategory | None:
+    """Map a PropertyDef entity_category string to the HA enum."""
+    if definition.entity_category == "diagnostic":
+        return EntityCategory.DIAGNOSTIC
+    if definition.entity_category == "config":
+        return EntityCategory.CONFIG
+    return None
 
 
 class MovaLitterBoxEntity(CoordinatorEntity[MovaLitterBoxCoordinator]):

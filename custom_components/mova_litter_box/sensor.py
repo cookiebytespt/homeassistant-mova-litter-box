@@ -43,6 +43,26 @@ def decode_schedule(value: Any) -> list[str]:
     return entries
 
 
+def decode_time_window(value: Any) -> str | None:
+    """Decode a 5-byte time window: [days|0x80 enabled][sh][sm][eh][em]."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        raw = bytes.fromhex(value)
+    except ValueError:
+        return None
+    if len(raw) < 5:
+        return None
+    mask, sh, sm, eh, em = raw[0], raw[1], raw[2], raw[3], raw[4]
+    enabled = bool(mask & 0x80)
+    days = [d for i, d in enumerate(_DAYS) if mask & (1 << i)]
+    day_text = "Every day" if len(days) == 7 else ",".join(days) or "?"
+    return (
+        f"{day_text} {sh:02d}:{sm:02d}-{eh:02d}:{em:02d}"
+        + ("" if enabled else " (disabled)")
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: MovaConfigEntry,
@@ -111,6 +131,8 @@ class MovaPropertySensor(MovaLitterBoxEntity, SensorEntity):
         if self._definition.decoder == "schedule":
             entries = decode_schedule(value)
             return "; ".join(entries)[:255] if entries else "none"
+        if self._definition.decoder == "time_window":
+            return decode_time_window(value) or "none"
         if (
             value is not None
             and self._attr_device_class == SensorDeviceClass.TIMESTAMP
@@ -135,6 +157,8 @@ class MovaPropertySensor(MovaLitterBoxEntity, SensorEntity):
         )
         if self._definition.decoder == "schedule":
             return {"raw_value": value, "entries": decode_schedule(value)}
+        if self._definition.decoder == "time_window":
+            return {"raw_value": value}
         if not self._definition.options:
             return None
         return {"raw_value": value}

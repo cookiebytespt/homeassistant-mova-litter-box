@@ -1,8 +1,8 @@
-"""Select entities for the MOVA litter box."""
+"""Number entities for the MOVA litter box."""
 
 from __future__ import annotations
 
-from homeassistant.components.select import SelectEntity
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -19,14 +19,16 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data
     async_add_entities(
-        MovaPropertySelect(coordinator, definition)
+        MovaPropertyNumber(coordinator, definition)
         for definition in PROPERTIES
-        if definition.kind == "select"
+        if definition.kind == "number"
     )
 
 
-class MovaPropertySelect(MovaLitterBoxEntity, SelectEntity):
-    """A writable enum property exposed as a select."""
+class MovaPropertyNumber(MovaLitterBoxEntity, NumberEntity):
+    """A writable numeric property."""
+
+    _attr_mode = NumberMode.BOX
 
     def __init__(
         self, coordinator: MovaLitterBoxCoordinator, definition: PropertyDef
@@ -36,21 +38,29 @@ class MovaPropertySelect(MovaLitterBoxEntity, SelectEntity):
         self._attr_unique_id = f"{coordinator.did}-{definition.key}"
         self._attr_translation_key = definition.key
         self._attr_icon = definition.icon
-        self._attr_options = list(definition.options.values())
-        self._reverse = {name: raw for raw, name in definition.options.items()}
+        self._attr_native_unit_of_measurement = definition.unit
         self._attr_entity_category = category_for(definition)
         self._attr_entity_registry_enabled_default = definition.confirmed
+        if definition.min_value is not None:
+            self._attr_native_min_value = definition.min_value
+        if definition.max_value is not None:
+            self._attr_native_max_value = definition.max_value
+        if definition.step is not None:
+            self._attr_native_step = definition.step
 
     @property
-    def current_option(self) -> str | None:
+    def native_value(self) -> float | None:
         value = self.coordinator.get_property(
             self._definition.siid, self._definition.piid
         )
-        return self._definition.options.get(value)
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
 
-    async def async_select_option(self, option: str) -> None:
+    async def async_set_native_value(self, value: float) -> None:
         await self.coordinator.async_set_property(
             self._definition.siid,
             self._definition.piid,
-            self._reverse[option],
+            int(value) if float(value).is_integer() else value,
         )
