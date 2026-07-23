@@ -80,6 +80,14 @@
     "number": {
       "cleaning_delay": { "name": "Cleaning delay" }
     },
+    "button": {
+      "start_cleaning": { "name": "Start cleaning" },
+      "start_emptying": { "name": "Empty waste" },
+      "start_leveling": { "name": "Level litter" },
+      "pause": { "name": "Pause" },
+      "resume": { "name": "Resume" },
+      "stop": { "name": "Stop" }
+    },
     "select": {
       "cleaning_mode": {
         "name": "Cleaning mode",

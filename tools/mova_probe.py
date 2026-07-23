@@ -11,13 +11,18 @@ integration:
   * a sweep of cached property values (siid/piid grid) via iotstatus/props
   * a live get_properties call over the app command channel (optional)
 
-It never sets a property and never calls an action.
+The default run and --watch are read-only. The --action mode is the ONE
+exception: it sends a single MIOT action after an explicit typed YES
+confirmation (used to discover clean/empty/level action IDs on real hardware).
 
 Usage:
     export MOVA_USERNAME="you@example.com"
     export MOVA_PASSWORD="your-password"
     export MOVA_COUNTRY="eu"          # eu / us / cn / sg ... (default eu)
-    python3 mova_probe.py
+    python3 mova_probe.py                       # read-only full dump
+    python3 mova_probe.py --watch               # read-only live diff
+    python3 mova_probe.py --action 2 1          # send action siid=2 aiid=1
+    python3 mova_probe.py --action 2 1 '[{"piid":1,"value":0}]'  # with params
 
 Output: prints a summary and writes mova_probe_output.json next to the
 script. Review the JSON before sharing it — it contains your device ids
@@ -193,7 +198,7 @@ def watch(cloud: "MovaCloud", did: str, bind_domain: str | None,
                 except Exception as exc:  # noqa: BLE001
                     print(f"  ! chunk failed: {exc}")
                     continue
-                result = (resp or {}).get("data", {}).get("result")
+                result = ((resp or {}).get("data") or {}).get("result")
                 for item in result or []:
                     if isinstance(item, dict) and item.get("code", 0) == 0:
                         now[f"{item.get('siid')}.{item.get('piid')}"] = item.get("value")
@@ -219,12 +224,253 @@ def watch(cloud: "MovaCloud", did: str, bind_domain: str | None,
         print("Annotate what you did at each time and share the file back.")
 
 
+def _first_device(cloud: "MovaCloud") -> dict:
+    """Log in and return the first bound device record."""
+    print(f"Logging in to {cloud.base} ...")
+    cloud.login()
+    listing = cloud.device_list()
+    records = []
+    if listing and isinstance(listing.get("data"), dict):
+        page = listing["data"].get("page", listing["data"])
+        records = page.get("records", []) or []
+    if not records:
+        raise SystemExit("No devices found.")
+    return records[0]
+
+
+def _result_code(resp: object) -> object:
+    """Return the effective (inner if present) status code of a response."""
+    if not isinstance(resp, dict):
+        return None
+    data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+    result = data.get("result")
+    if isinstance(result, dict) and "code" in result:
+        return result.get("code")
+    if isinstance(result, list) and result and isinstance(result[0], dict):
+        return result[0].get("code")
+    return resp.get("code")
+
+
+def _interpret(resp: object) -> str:
+    """Human-readable interpretation of a sendCommand response."""
+    if not isinstance(resp, dict):
+        return "no/blank response (HTTP error or device offline)"
+    code = resp.get("code")
+    data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+    inner = None
+    result = data.get("result")
+    if isinstance(result, dict):
+        inner = result.get("code")
+    elif isinstance(result, list) and result and isinstance(result[0], dict):
+        inner = result[0].get("code")
+    eff = inner if inner is not None else code
+    meaning = {
+        0: "OK — accepted (action exists)",
+        -4001: "property not readable",
+        -4002: "property not writable",
+        -4003: "does not exist (invalid siid/aiid)",
+        -4004: "method does not exist",
+        -4005: "value/arg error (action likely EXISTS)",
+        -4006: "invalid params (action likely EXISTS)",
+        80001: "device offline / timed out",
+    }.get(eff, "unknown code (action may exist)")
+    return f"code={code} result_code={inner} -> {meaning}"
+
+
+def action_mode(cloud: "MovaCloud", siid: int, aiid: int,
+                params: list) -> None:
+    """Send ONE MIOT action and poll status 2.1 for ~20s.
+
+    WRITE OPERATION. Prints a safety warning and requires the user to type
+    YES before anything is sent. Use only with the device in standby, no cat
+    nearby, and one action at a time.
+    """
+    rec = _first_device(cloud)
+    did = str(rec.get("did"))
+    bind_domain = rec.get("bindDomain")
+    model = rec.get("model")
+    name = rec.get("customName")
+
+    # Read the current status (2.1) so we can show the transition.
+    def read_status() -> object:
+        try:
+            resp = cloud.send_command(
+                did, bind_domain, "get_properties",
+                [{"did": did, "siid": 2, "piid": 1}])
+        except Exception as exc:  # noqa: BLE001
+            return f"<error: {exc}>"
+        for item in ((resp or {}).get("data") or {}).get("result") or []:
+            if isinstance(item, dict) and item.get("code", 0) == 0:
+                return item.get("value")
+        return None
+
+    before = read_status()
+    print("\n" + "=" * 68)
+    print("  !!  SAFETY WARNING — this SENDS A COMMAND to the device  !!")
+    print("=" * 68)
+    print(f"  Device : {model} ({name})  did={did}")
+    print(f"  Action : siid={siid} aiid={aiid} in={params!r}")
+    print(f"  Current status 2.1 = {before!r}")
+    print("-" * 68)
+    print("  Before continuing, make sure:")
+    print("    * the litter box is in STANDBY (2.1 == 0),")
+    print("    * NO cat is inside or near the device,")
+    print("    * you are testing ONE action at a time.")
+    print("  An unknown action can start a clean/empty/level cycle or move")
+    print("  the drum. Stop the cycle from the MOVAhome app if needed.")
+    print("=" * 68)
+    answer = input("Type YES (uppercase) to send this action, anything else to abort: ")
+    if answer.strip() != "YES":
+        print("Aborted. Nothing was sent.")
+        return
+
+    print(f"\nSending action siid={siid} aiid={aiid} ...")
+    try:
+        resp = cloud.send_command(
+            did, bind_domain, "action",
+            {"did": did, "siid": siid, "aiid": aiid, "in": params})
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(f"Action send failed: {exc}")
+    print(f"  raw response: {json.dumps(resp, ensure_ascii=False)}")
+    print(f"  interpreted : {_interpret(resp)}")
+
+    print("\nPolling status 2.1 for ~20s (Ctrl-C to stop early) ...")
+    last = before
+    print(f"  t=0s   2.1 = {before!r}")
+    try:
+        for elapsed in range(2, 22, 2):
+            time.sleep(2)
+            now = read_status()
+            marker = "  <-- changed" if now != last else ""
+            print(f"  t={elapsed:<2}s  2.1 = {now!r}{marker}")
+            last = now
+    except KeyboardInterrupt:
+        print("\nStopped polling.")
+    print(f"\nDone. 2.1 went {before!r} -> {last!r}. "
+          "Note the transition to confirm what this action does.")
+
+
+def scan_actions_mode(cloud: "MovaCloud", siid_lo: int, siid_hi: int,
+                      aiid_lo: int, aiid_hi: int) -> None:
+    """Sweep a range of (siid, aiid) actions and report which ones exist.
+
+    WRITE OPERATION. For each candidate it sends an empty-arg action and
+    records the response code, so actions that DON'T exist (error code) are
+    told apart from ones that DO (code 0). If status 2.1 changes, a real
+    cycle likely started, so the sweep STOPS immediately and reports it.
+    Run only in standby, no cat nearby.
+    """
+    rec = _first_device(cloud)
+    did = str(rec.get("did"))
+    bind_domain = rec.get("bindDomain")
+
+    def status() -> object:
+        resp = cloud.send_command(did, bind_domain, "get_properties",
+                                  [{"did": did, "siid": 2, "piid": 1}])
+        for item in ((resp or {}).get("data") or {}).get("result") or []:
+            if isinstance(item, dict) and item.get("code", 0) == 0:
+                return item.get("value")
+        return None
+
+    baseline = status()
+    combos = [(s, a) for s in range(siid_lo, siid_hi + 1)
+              for a in range(aiid_lo, aiid_hi + 1)]
+    print("\n" + "=" * 68)
+    print("  !!  SAFETY WARNING — this SENDS COMMANDS to the device  !!")
+    print("=" * 68)
+    print(f"  Device : {rec.get('model')} ({rec.get('customName')}) did={did}")
+    print(f"  Sweep  : siid {siid_lo}-{siid_hi} x aiid {aiid_lo}-{aiid_hi} "
+          f"= {len(combos)} actions (empty args)")
+    print(f"  Status : 2.1 = {baseline!r} (must be 0 / standby)")
+    print("  Ensure NO cat is near the box. The sweep stops the moment 2.1")
+    print("  changes so at most ONE cycle can start.")
+    print("=" * 68)
+    if input("Type YES to sweep: ").strip() != "YES":
+        print("Aborted. Nothing was sent.")
+        return
+
+    exists: list[str] = []
+    for siid, aiid in combos:
+        resp = cloud.send_command(
+            did, bind_domain, "action",
+            {"did": did, "siid": siid, "aiid": aiid, "in": []})
+        info = _interpret(resp)
+        # An action "exists" if the device didn't report it missing.
+        # -4003 (no such siid/aiid) and -4004 (no such method) mean absent;
+        # anything else (0 accepted, -4005/-4006 arg errors) means present.
+        rc = _result_code(resp)
+        ok = rc not in (-4003, -4004, None)
+        flag = "  <== EXISTS" if ok else ""
+        if ok:
+            exists.append(f"{siid}.{aiid}")
+        print(f"  action {siid}.{aiid:<2} : {info}{flag}")
+        time.sleep(0.4)
+        now = status()
+        if now != baseline:
+            print(f"\n  ** 2.1 changed {baseline!r} -> {now!r} after "
+                  f"action {siid}.{aiid} — a cycle likely STARTED. Stopping. **")
+            print(f"  >>> action {siid}.{aiid} is a real command. Note it, "
+                  "then stop the cycle from the app. <<<")
+            return
+    print("\nSweep complete. Actions that returned OK (exist): "
+          + (", ".join(exists) if exists else "none"))
+    print("None of these started a cycle with empty args — a starting action "
+          "may need arguments, or lives outside the swept range.")
+
+
+def _parse_scan_args(argv: list) -> tuple[int, int, int, int]:
+    """Parse '--scan-actions [siid_lo siid_hi aiid_lo aiid_hi]'."""
+    idx = argv.index("--scan-actions")
+    rest = [a for a in argv[idx + 1:] if not a.startswith("-")]
+    nums = [int(x) for x in rest[:4]] if rest else []
+    if len(nums) == 4:
+        return nums[0], nums[1], nums[2], nums[3]
+    return 1, 6, 1, 8  # default sweep
+
+
+def _parse_action_args(argv: list) -> tuple[int, int, list]:
+    """Parse '--action SIID AIID [json-params]' from argv."""
+    idx = argv.index("--action")
+    rest = argv[idx + 1:]
+    if len(rest) < 2:
+        raise SystemExit(
+            "Usage: mova_probe.py --action SIID AIID [JSON-PARAMS]\n"
+            "  e.g. mova_probe.py --action 2 1\n"
+            "       mova_probe.py --action 2 1 '[{\"piid\":1,\"value\":0}]'")
+    try:
+        siid = int(rest[0])
+        aiid = int(rest[1])
+    except ValueError:
+        raise SystemExit("SIID and AIID must be integers.")
+    params: list = []
+    if len(rest) >= 3 and rest[2]:
+        try:
+            params = json.loads(rest[2])
+        except ValueError as exc:
+            raise SystemExit(f"Could not parse JSON params: {exc}")
+        if not isinstance(params, list):
+            raise SystemExit("JSON params must be a list, e.g. [{\"piid\":1,\"value\":0}].")
+    return siid, aiid, params
+
+
 def main() -> None:
     username = os.environ.get("MOVA_USERNAME")
     password = os.environ.get("MOVA_PASSWORD")
     country = os.environ.get("MOVA_COUNTRY", "eu")
     if not username or not password:
         raise SystemExit("Set MOVA_USERNAME and MOVA_PASSWORD env vars first.")
+
+    if "--scan-actions" in sys.argv:
+        lo_s, hi_s, lo_a, hi_a = _parse_scan_args(sys.argv)
+        cloud = MovaCloud(username, password, country)
+        scan_actions_mode(cloud, lo_s, hi_s, lo_a, hi_a)
+        return
+
+    if "--action" in sys.argv:
+        siid, aiid, params = _parse_action_args(sys.argv)
+        cloud = MovaCloud(username, password, country)
+        action_mode(cloud, siid, aiid, params)
+        return
 
     if "--watch" in sys.argv:
         cloud = MovaCloud(username, password, country)
@@ -254,7 +500,7 @@ def main() -> None:
                     did, rec.get("bindDomain"), "get_properties", params)
             except Exception:  # noqa: BLE001
                 continue
-            for item in (resp or {}).get("data", {}).get("result") or []:
+            for item in ((resp or {}).get("data") or {}).get("result") or []:
                 if isinstance(item, dict) and item.get("code", 0) == 0:
                     existing.append(f"{item.get('siid')}.{item.get('piid')}")
         watch(cloud, did, rec.get("bindDomain"), existing)
@@ -368,7 +614,7 @@ def main() -> None:
                 continue
             if i == 0:
                 dev_out["live_props_raw_first_chunk"] = resp
-            result = resp.get("data", {}).get("result") if isinstance(resp, dict) else None
+            result = (resp.get("data") or {}).get("result") if isinstance(resp, dict) else None
             if result is None and isinstance(resp, dict):
                 result = resp.get("result") or resp.get("data")
             if isinstance(result, list):

@@ -7,8 +7,9 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 
 from .api import MovaCloudClient
-from .const import CONF_COUNTRY, DEFAULT_COUNTRY
+from .const import CONF_COUNTRY, DEFAULT_COUNTRY, DOMAIN
 from .coordinator import MovaLitterBoxCoordinator
+from .services import async_setup_services, async_unload_services
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -34,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MovaConfigEntry) -> bool
 
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_setup_services(hass)
     return True
 
 
@@ -42,4 +44,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: MovaConfigEntry) -> boo
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         await hass.async_add_executor_job(entry.runtime_data.client.close)
+        # Drop the shared services once the last entry has unloaded.
+        remaining = [
+            other
+            for other in hass.config_entries.async_loaded_entries(DOMAIN)
+            if other.entry_id != entry.entry_id
+        ]
+        if not remaining:
+            await async_unload_services(hass)
     return unload_ok
