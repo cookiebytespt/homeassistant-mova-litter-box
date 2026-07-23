@@ -1,0 +1,105 @@
+send_action:
+  name: Send action
+  description: >-
+    Call a raw MIOT action (method "action") on the litter box via the MOVA
+    cloud command channel. Use this to probe or trigger device cycles whose
+    action IDs are not yet mapped to buttons. Watch the Status sensor (2.1) for
+    the resulting transition. SAFETY: keep the device in standby with no cat
+    nearby, and test one action at a time.
+  fields:
+    siid:
+      name: Service ID (siid)
+      description: MIOT service ID. The main functional/status service is 2.
+      required: true
+      example: 2
+      selector:
+        number:
+          min: 1
+          max: 20
+          mode: box
+    aiid:
+      name: Action ID (aiid)
+      description: MIOT action ID within the service.
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 30
+          mode: box
+    params:
+      name: Parameters
+      description: >-
+        Optional list of MIOT action arguments, each a mapping like
+        {piid: 1, value: 0}. Leave empty for actions that take no arguments.
+      required: false
+      example: "[{piid: 1, value: 0}]"
+      selector:
+        object: {}
+    entry_id:
+      name: Config entry ID
+      description: >-
+        Target config entry. Only required when more than one MOVA litter box
+        is configured.
+      required: false
+      example: 01J8ABCXYZ
+      selector:
+        text:
+
+set_property:
+  name: Set property
+  description: >-
+    Write a raw MIOT property (method "set_properties") on the litter box.
+    Use this to probe or change settings whose piid is not yet mapped to an
+    entity. SAFETY: writing unknown properties can change device behaviour.
+  fields:
+    siid:
+      name: Service ID (siid)
+      description: MIOT service ID (settings live on service 3).
+      required: true
+      example: 3
+      selector:
+        number:
+          min: 1
+          max: 20
+          mode: box
+    piid:
+      name: Property ID (piid)
+      description: MIOT property ID within the service.
+      required: true
+      example: 8
+      selector:
+        number:
+          min: 1
+          max: 40
+          mode: box
+    value:
+      name: Value
+      description: Value to write (number, boolean, or string).
+      required: true
+      example: 1
+      selector:
+        object: {}
+    entry_id:
+      name: Config entry ID
+      description: >-
+        Target config entry. Only required when more than one MOVA litter box
+        is configured.
+      required: false
+      example: 01J8ABCXYZ
+      selector:
+        text:
+
+refresh:
+  name: Refresh
+  description: Force an immediate data refresh from the MOVA cloud.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: >-
+        Target config entry. Only required when more than one MOVA litter box
+        is configured.
+      required: false
+      example: 01J8ABCXYZ
+      selector:
+        text:

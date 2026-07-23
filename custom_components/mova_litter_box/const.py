@@ -356,8 +356,66 @@ PROPERTIES: list[PropertyDef] = [
 # watch-mode diff logs and safe to ignore for automations).
 NOISY_KEYS = {"2.5"}
 
+# --------------------------------------------------------------------------
+# Action map for mova.litterbox.q2504w.
+#
+# Actions live on SERVICE 3 (discovered via tools/mova_probe.py --scan-actions:
+# a sweep of siid 1-6 x aiid 1-8 returned -4003 "does not exist" for every
+# candidate on services 1 and 2, and action 3.1 returned code 0 and moved
+# status 2.1 from 0 -> 1, i.e. it started a cleaning cycle). Start actions take
+# no arguments (empty `in`).
+#
+# ALL CONFIRMED on a real q2504w via tools/mova_probe.py --action, by the
+# observed 2.1 transition (start actions take empty `in`):
+#   3.1 start cleaning  (2.1 -> 1)
+#   3.2 start emptying  (2.1 -> 3)
+#   3.3 start leveling  (2.1 -> 5)
+#   3.4 stop / cancel   (2.1 -> 7/8/9 canceling -> 0 standby)
+#   3.5 pause           (2.1 running -> 2/4/6 paused)
+#   3.6 resume          (2.1 paused -> 1/3/5 running)
 ACTIONS: list[ActionDef] = [
-    # Filled in after probe: e.g. start_clean, deodorize, level_litter...
+    ActionDef(
+        key="start_cleaning",
+        siid=3,
+        aiid=1,
+        icon="mdi:broom",
+        confirmed=True,
+    ),
+    ActionDef(
+        key="start_emptying",
+        siid=3,
+        aiid=2,
+        icon="mdi:delete-empty",
+        confirmed=True,
+    ),
+    ActionDef(
+        key="start_leveling",
+        siid=3,
+        aiid=3,
+        icon="mdi:dots-horizontal",
+        confirmed=True,
+    ),
+    ActionDef(
+        key="pause",
+        siid=3,
+        aiid=5,
+        icon="mdi:pause",
+        confirmed=True,
+    ),
+    ActionDef(
+        key="resume",
+        siid=3,
+        aiid=6,
+        icon="mdi:play",
+        confirmed=True,
+    ),
+    ActionDef(
+        key="stop",
+        siid=3,
+        aiid=4,
+        icon="mdi:stop",
+        confirmed=True,
+    ),
 ]
 
 # The sweep used when the curated map is empty/unconfirmed: every property
