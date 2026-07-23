@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-07-23
+
+### Changed
+
+- Refreshed the brand icon to a full-bleed, trim-safe app icon and prepared
+  it for submission to `home-assistant/brands` (`brands_pr/`). Note: the
+  icon shown in the Home Assistant / HACS UI is served from the central
+  brands CDN, so it appears once the brands submission is merged.
+
 ## 0.3.0 — 2026-07-23
 
 Meet the cats. 🐱
