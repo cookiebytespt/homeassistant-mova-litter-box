@@ -65,13 +65,14 @@ MOVAhome account (email + password + region), then pick your litter box 🐈:
   re-authentication support.
 - ✅ **Core entities** — status, settings switches, mode/duration selects,
   cleaning delay, decoded schedule and DND windows, diagnostics.
+- ✅ **Action buttons & control services** — Start cleaning, Empty waste,
+  Level litter, Pause, Resume, Stop, plus `send_action` / `set_property` /
+  `refresh` services.
 - 🔧 **Tune the remaining device properties** — identify the last few
   unmapped values (`2.2`, `2.6`, `3.2`, `3.12`, `3.21`) and expose them as
   properly named entities.
 - 🐈 **Map the cats** *(if possible)* — cat visit detection, per-cat
   weight, and toilet-habit tracking; litter level and waste bin state.
-- 🎛️ **Action buttons** — Clean, Empty, and Level (pending discovery of
-  the action IDs).
 - 📡 **Push updates** — switch from polling to MQTT for real-time state.
 
 Want to help? See below. 👇

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.0 — 2026-07-23
+
+Full device control. 🎮🐱
+
+### Added
+
+- **Action buttons** — Start cleaning, Empty waste, Level litter, Pause,
+  Resume, and Stop. All six are confirmed against real hardware (they live
+  on service 3) and verified by the resulting status transition, so they
+  work across every cycle type.
+- **Control services** — `mova_litter_box.send_action`,
+  `mova_litter_box.set_property`, and `mova_litter_box.refresh` for
+  triggering or probing any action/property directly from Home Assistant.
+
+### Changed
+
+- Coordinator now passes its config entry explicitly (HA 2026.8+ ready).
+
+### Fixed
+
+- Probe (`tools/mova_probe.py`) is hardened against `null` data fields in
+  cloud responses, and decodes MIoT short error codes; adds `--action` and
+  `--scan-actions` discovery modes.
+
 ## 0.1.0 — 2026-07-22
 
 First release. 🐱🍪
