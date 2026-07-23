@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-07-23
+
+### Added
+
+- **Smoothing** select — control the litter-smoothing offset: Centered, or
+  offset left/right by slightly / moderately / significantly. All seven
+  positions were confirmed against real hardware (property `3.21`).
+
 ## 0.3.1 — 2026-07-23
 
 ### Changed
